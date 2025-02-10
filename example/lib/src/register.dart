@@ -194,7 +194,7 @@ class _MyRegisterWidget extends State<RegisterWidget>
               textAlign: TextAlign.center,
             ),
           ],
-          if (_selectedTransport == TransportType.TCP) ...[
+          if (_selectedTransport != TransportType.WS) ...[
             Text('Port', style: TextStyle(color: textLabelColor)),
             SizedBox(height: 5),
             TextFormField(
@@ -296,6 +296,13 @@ class _MyRegisterWidget extends State<RegisterWidget>
                           _selectedTransport = value!;
                         })),
                     child: Text("WS")),
+                RadioMenuButton<TransportType>(
+                    value: TransportType.TLS,
+                    groupValue: _selectedTransport,
+                    onChanged: ((value) => setState(() {
+                          _selectedTransport = value!;
+                        })),
+                    child: Text("TLS")),
               ],
             ),
           ],

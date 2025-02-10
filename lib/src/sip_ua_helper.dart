@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:logger/logger.dart';
 import 'package:sdp_transform/sdp_transform.dart' as sdp_transform;
+import 'package:sip_ua/src/transports/tls_socket.dart';
 
 // Project imports:
 import 'package:sip_ua/src/uri.dart';
@@ -154,6 +155,13 @@ class SIPUAHelper extends EventManager {
     if (uaSettings.transportType == TransportType.TCP) {
       SIPUATcpSocket socket = SIPUATcpSocket(
           uaSettings.host ?? '0.0.0.0', uaSettings.port ?? '5060',
+          messageDelay: 1);
+      _settings.sockets!.add(socket);
+    }
+
+    if (uaSettings.transportType == TransportType.TLS) {
+      SIPUATlsSocket socket = SIPUATlsSocket(
+          uaSettings.host ?? '0.0.0.0', uaSettings.port ?? '5061',
           messageDelay: 1);
       _settings.sockets!.add(socket);
     }
