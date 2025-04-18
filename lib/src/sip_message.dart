@@ -277,9 +277,15 @@ class OutgoingRequest {
 
     if (body != null) {
       logger.d('Outgoing Message: $method body: $body');
-      int length = utf8.encode(body!).length;
+
+        String filteredBody = _body
+          .split('\n')
+          .where((line) => !(line.contains('a=candidate') && (line.contains('127.0.0.1') || line.contains('::1'))))
+          .join('\n');
+      
+      int length = utf8.encode(filteredBody!).length;
       msg += 'Content-Length: $length\r\n\r\n';
-      msg += body!;
+      msg += filteredBody!;
     } else {
       msg += 'Content-Length: 0\r\n\r\n';
     }
