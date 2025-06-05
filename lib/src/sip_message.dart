@@ -226,20 +226,49 @@ class OutgoingRequest {
 
   @override
   String toString() {
-    String msg = '${SipMethodHelper.getName(method)} $ruri SIP/2.0\r\n';
+    // Start with request line
+    final StringBuffer buffer = StringBuffer();
+    buffer.write('${SipMethodHelper.getName(method)} $ruri SIP/2.0\r\n');
 
+    // Add headers
     headers.forEach((String? headerName, dynamic headerValues) {
-      headerValues.forEach((dynamic value) {
-        msg += '$headerName: $value\r\n';
-      });
+      for (dynamic value in headerValues) {
+        buffer.write('$headerName: $value\r\n');
+      }
     });
 
-    for (dynamic header in extraHeaders) {
-      msg += '${header.trim()}\r\n';
+    // Add extra headers
+    for (final dynamic header in extraHeaders) {
+      buffer.write('${header.trim()}\r\n');
     }
 
-    // Supported.
-    List<dynamic> supported = <dynamic>[];
+    // Build supported features list
+    final List<String> supported = _buildSupportedFeatures();
+    
+    // Add standard headers
+    buffer.write('Allow: ${DartSIP_C.ALLOWED_METHODS}\r\n');
+    buffer.write('Supported: ${supported.join(',')}\r\n');
+    buffer.write('User-Agent: ${ua.configuration.user_agent}\r\n');
+
+    // Add body if present
+    if (body != null) {
+      logger.d('Outgoing Message: $method body: $body');
+
+      final String filteredBody = _getFilteredBody();
+      final int length = utf8.encode(filteredBody).length;
+      
+      buffer.write('Content-Length: $length\r\n\r\n');
+      buffer.write(filteredBody);
+    } else {
+      buffer.write('Content-Length: 0\r\n\r\n');
+    }
+
+    return buffer.toString();
+  }
+
+  /// Builds list of supported features based on request method
+  List<String> _buildSupportedFeatures() {
+    final List<String> supported = <String>[];
 
     switch (method) {
       case SipMethod.REGISTER:
@@ -267,30 +296,16 @@ class OutgoingRequest {
     }
 
     supported.add('outbound');
+    return supported;
+  }
 
-    String userAgent = ua.configuration.user_agent;
-
-    // Allow.
-    msg += 'Allow: ${DartSIP_C.ALLOWED_METHODS}\r\n';
-    msg += 'Supported: ${supported.join(',')}\r\n';
-    msg += 'User-Agent: $userAgent\r\n';
-
-    if (body != null) {
-      logger.d('Outgoing Message: $method body: $body');
-
-        String filteredBody = _body
-          .split('\n')
-          .where((line) => !(line.contains('a=candidate') && (line.contains('127.0.0.1') || line.contains('::1'))))
-          .join('\n');
-      
-      int length = utf8.encode(filteredBody!).length;
-      msg += 'Content-Length: $length\r\n\r\n';
-      msg += filteredBody!;
-    } else {
-      msg += 'Content-Length: 0\r\n\r\n';
-    }
-
-    return msg;
+  /// Returns body with localhost candidates filtered out
+  String _getFilteredBody() {
+    return body!
+        .split('\n')
+        .where((String line) => !(line.contains('a=candidate') && 
+            (line.contains('127.0.0.1') || line.contains('::1'))))
+        .join('\n');
   }
 
   OutgoingRequest clone() {
