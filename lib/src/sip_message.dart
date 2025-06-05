@@ -219,7 +219,8 @@ class OutgoingRequest {
     if (!force && sdp != null) {
       return sdp;
     } else {
-      sdp = sdp_transform.parse(body ?? '');
+      String filteredBody = SdpFilter.filterLocalCandidates(body ?? '');
+      sdp = sdp_transform.parse(filteredBody);
       return sdp;
     }
   }
@@ -252,14 +253,14 @@ class OutgoingRequest {
 
     // Add body if present
     if (body != null) {
-      logger.d('Outgoing Message: $method body: $body');
+    logger.d('Outgoing Message: $method body: $body');
 
-      final String filteredBody = _getFilteredBody();
-      final int length = utf8.encode(filteredBody).length;
+    final String filteredBody = SdpFilter.filterLocalCandidates(body!);
+    final int length = utf8.encode(filteredBody).length;
       
-      buffer.write('Content-Length: $length\r\n\r\n');
-      buffer.write(filteredBody);
-    } else {
+    buffer.write('Content-Length: $length\r\n\r\n');
+    buffer.write(filteredBody);
+  } else {
       buffer.write('Content-Length: 0\r\n\r\n');
     }
 
@@ -300,12 +301,8 @@ class OutgoingRequest {
   }
 
   /// Returns body with localhost candidates filtered out
-  String _getFilteredBody() {
-    return body!
-        .split('\n')
-        .where((String line) => !(line.contains('a=candidate') && 
-            (line.contains('127.0.0.1') || line.contains('::1'))))
-        .join('\n');
+  String _filterSdpBody() {
+    return SdpFilter.filterLocalCandidates(body ?? '');
   }
 
   OutgoingRequest clone() {
@@ -525,7 +522,8 @@ class IncomingMessage {
     if (!force && sdp != null) {
       return sdp;
     } else {
-      sdp = sdp_transform.parse(body ?? '');
+      final String filteredBody = SdpFilter.filterLocalCandidates(body ?? '');
+      sdp = sdp_transform.parse(filteredBody);
       return sdp;
     }
   }
@@ -715,5 +713,21 @@ class IncomingResponse extends IncomingMessage {
     headers = <String?, dynamic>{};
     status_code = null;
     reason_phrase = null;
+  }
+}
+
+/// Utility class for SDP filtering operations
+class SdpFilter {
+  /// Filters out localhost candidates from SDP
+  static String filterLocalCandidates(String body) {
+    if (body.isEmpty) {
+      return '';
+    }
+    
+    return body
+        .split('\n')
+        .where((String line) => !(line.contains('a=candidate') && 
+            (line.contains('127.0.0.1') || line.contains('::1'))))
+        .join('\n');
   }
 }
