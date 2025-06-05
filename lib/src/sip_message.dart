@@ -29,10 +29,7 @@ import 'utils.dart' as utils;
  * -param {String} [body]
  */
 class OutgoingRequest {
-  OutgoingRequest(this.method, this.ruri, this.ua,
-      [Map<String, dynamic>? params,
-      List<dynamic>? extraHeaders,
-      String? body]) {
+  OutgoingRequest(this.method, this.ruri, this.ua, [Map<String, dynamic>? params, List<dynamic>? extraHeaders, String? body]) {
     // Mandatory parameters check.
     if (method == null || ruri == null || ua == null) {
       throw Exceptions.TypeError('OutgoingRequest: ctor parameters invalid!');
@@ -41,8 +38,7 @@ class OutgoingRequest {
     params = params ?? <String, dynamic>{};
     // ignore: prefer_initializing_formals
     this.body = body;
-    if (extraHeaders != null)
-      this.extraHeaders = utils.cloneArray(extraHeaders);
+    if (extraHeaders != null) this.extraHeaders = utils.cloneArray(extraHeaders);
 
     // Fill the Common SIP Request Headers.
 
@@ -64,9 +60,7 @@ class OutgoingRequest {
 
     // To
     dynamic to_uri = params['to_uri'] ?? ruri;
-    dynamic to_params = params['to_tag'] != null
-        ? <String, dynamic>{'tag': params['to_tag']}
-        : null;
+    dynamic to_params = params['to_tag'] != null ? <String, dynamic>{'tag': params['to_tag']} : null;
     String? to_display_name = params['to_display_name'];
 
     to = NameAddrHeader(to_uri, to_display_name, to_params);
@@ -74,9 +68,7 @@ class OutgoingRequest {
 
     // From.
     dynamic from_uri = params['from_uri'] ?? ua.configuration.uri;
-    Map<String, dynamic> from_params = <String, dynamic>{
-      'tag': params['from_tag'] ?? utils.newTag()
-    };
+    Map<String, dynamic> from_params = <String, dynamic>{'tag': params['from_tag'] ?? utils.newTag()};
     String? display_name;
 
     if (params['from_display_name'] != null) {
@@ -91,8 +83,7 @@ class OutgoingRequest {
     setHeader('from', from.toString());
 
     // Call-ID.
-    String call_id = params['call_id'] ??
-        (ua.configuration.jssip_id! + utils.createRandomToken(15));
+    String call_id = params['call_id'] ?? (ua.configuration.jssip_id! + utils.createRandomToken(15));
 
     this.call_id = call_id;
     setHeader('call-id', call_id);
@@ -245,7 +236,7 @@ class OutgoingRequest {
 
     // Build supported features list
     final List<String> supported = _buildSupportedFeatures();
-    
+
     // Add standard headers
     buffer.write('Allow: ${DartSIP_C.ALLOWED_METHODS}\r\n');
     buffer.write('Supported: ${supported.join(',')}\r\n');
@@ -253,14 +244,14 @@ class OutgoingRequest {
 
     // Add body if present
     if (body != null) {
-    logger.d('Outgoing Message: $method body: $body');
+      logger.d('Outgoing Message: $method body: $body');
 
-    final String filteredBody = SdpFilter.filterLocalCandidates(body!);
-    final int length = utf8.encode(filteredBody).length;
-      
-    buffer.write('Content-Length: $length\r\n\r\n');
-    buffer.write(filteredBody);
-  } else {
+      final String filteredBody = SdpFilter.filterLocalCandidates(body!);
+      final int length = utf8.encode(filteredBody).length;
+
+      buffer.write('Content-Length: $length\r\n\r\n');
+      buffer.write(filteredBody);
+    } else {
       buffer.write('Content-Length: 0\r\n\r\n');
     }
 
@@ -324,8 +315,7 @@ class OutgoingRequest {
 }
 
 class InitialOutgoingInviteRequest extends OutgoingRequest {
-  InitialOutgoingInviteRequest(URI? ruri, UA ua,
-      [Map<String, dynamic>? params, List<dynamic>? extraHeaders, String? body])
+  InitialOutgoingInviteRequest(URI? ruri, UA ua, [Map<String, dynamic>? params, List<dynamic>? extraHeaders, String? body])
       : super(SipMethod.INVITE, ruri, ua, params, extraHeaders, body) {
     transaction = null;
   }
@@ -336,8 +326,7 @@ class InitialOutgoingInviteRequest extends OutgoingRequest {
 
   @override
   InitialOutgoingInviteRequest clone() {
-    InitialOutgoingInviteRequest request =
-        InitialOutgoingInviteRequest(ruri, ua);
+    InitialOutgoingInviteRequest request = InitialOutgoingInviteRequest(ruri, ua);
 
     headers.forEach((String? name, dynamic value) {
       request.headers[name] = List<dynamic>.from(headers[name]);
@@ -554,12 +543,7 @@ class IncomingRequest extends IncomingMessage {
   * -param {Function} [onSuccess] onSuccess callback
   * -param {Function} [onFailure] onFailure callback
   */
-  void reply(int code,
-      [String? reason,
-      List<dynamic>? extraHeaders,
-      String? body,
-      Function? onSuccess,
-      Function? onFailure]) {
+  void reply(int code, [String? reason, List<dynamic>? extraHeaders, String? body, Function? onSuccess, Function? onFailure]) {
     List<dynamic> supported = <dynamic>[];
     dynamic to = getHeader('To');
 
@@ -645,13 +629,18 @@ class IncomingRequest extends IncomingMessage {
     }
 
     response += 'Supported: ${supported.join(',')}\r\n';
-
     if (body != null) {
-      int length = body.length;
-      int utf8Length = utf8.encode(body).length;
-      if (length != utf8Length) {
+      // Filter out local candidates
+      String filteredBody = SdpFilter.filterLocalCandidates(body);
+      int length = utf8.encode(filteredBody).length;
+
+      // Check if body contains non-ASCII characters
+      if (body.length != utf8.encode(body).length) {
         logger.w('WARNING Non-ASCII character detected in message body');
       }
+
+      // Use the filtered body instead of the original
+      body = filteredBody;
 
       response += 'Content-Type: application/sdp\r\n';
       response += 'Content-Length: $length\r\n\r\n';
@@ -663,8 +652,7 @@ class IncomingRequest extends IncomingMessage {
     IncomingMessage message = IncomingMessage();
     message.data = response;
 
-    server_transaction!.receiveResponse(code, message,
-        onSuccess as void Function()?, onFailure as void Function()?);
+    server_transaction!.receiveResponse(code, message, onSuccess as void Function()?, onFailure as void Function()?);
   }
 
   /**
@@ -723,11 +711,10 @@ class SdpFilter {
     if (body.isEmpty) {
       return '';
     }
-    
+
     return body
         .split('\n')
-        .where((String line) => !(line.contains('a=candidate') && 
-            (line.contains('127.0.0.1') || line.contains('::1'))))
+        .where((String line) => !(line.contains('a=candidate') && (line.contains('127.0.0.1') || line.contains('::1'))))
         .join('\n');
   }
 }
