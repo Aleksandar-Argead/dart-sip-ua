@@ -1,11 +1,9 @@
-// Dart imports:
 import 'dart:async';
 
-// Package imports:
+import 'package:collection/collection.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:sdp_transform/sdp_transform.dart' as sdp_transform;
 
-// Project imports:
 import '../sip_ua.dart';
 import 'constants.dart' as DartSIP_C;
 import 'constants.dart';
@@ -95,6 +93,9 @@ class RTCSession extends EventManager implements Owner {
   // The RTCPeerConnection instance (public attribute).
   RTCPeerConnection? _connection;
 
+  // RTPSender List
+  final List<RTCRtpSender> _senders = <RTCRtpSender>[];
+
   // Incoming/Outgoing request being currently processed.
   dynamic _request;
 
@@ -118,6 +119,9 @@ class RTCSession extends EventManager implements Owner {
 
   // Flag to indicate PeerConnection ready for actions.
   bool _rtcReady = true;
+
+  Timer? _iceDisconnectTimer;
+  bool _isAttemptingIceRestart = false;
 
   // SIP Timers.
   final SIPTimers _timers = SIPTimers();
@@ -168,8 +172,10 @@ class RTCSession extends EventManager implements Owner {
   @override
   int get TerminatedCode => RtcSessionState.terminated.index;
 
-  RTCDTMFSender get dtmfSender =>
-      _connection!.createDtmfSender(_localMediaStream!.getAudioTracks()[0]);
+  RTCDTMFSender? get dtmfSender => _senders
+      .firstWhereOrNull((RTCRtpSender item) =>
+          item.track != null && item.track!.kind == 'audio')
+      ?.dtmfSender;
 
   String? get contact => _contact;
 
@@ -628,8 +634,9 @@ class RTCSession extends EventManager implements Owner {
     if (stream != null) {
       switch (sdpSemantics) {
         case 'unified-plan':
-          stream.getTracks().forEach((MediaStreamTrack track) {
-            _connection!.addTrack(track, stream!);
+          stream.getTracks().forEach((MediaStreamTrack track) async {
+            RTCRtpSender sender = await _connection!.addTrack(track, stream!);
+            _senders.add(sender);
           });
           break;
         case 'plan-b':
@@ -1544,6 +1551,8 @@ class RTCSession extends EventManager implements Owner {
     clearTimeout(_timers.invite2xxTimer);
     clearTimeout(_timers.userNoAnswerTimer);
 
+    _iceDisconnectTimer?.cancel();
+
     // Clear Session Timers.
     clearTimeout(_sessionTimers.timer);
 
@@ -1631,20 +1640,79 @@ class RTCSession extends EventManager implements Owner {
       Map<String, dynamic> rtcConstraints) async {
     _connection = await createPeerConnection(pcConfig, rtcConstraints);
     _connection!.onIceConnectionState = (RTCIceConnectionState state) {
-      // TODO(cloudwebrtc): Do more with different states.
+      if (_state == RtcSessionState.terminated ||
+          _state == RtcSessionState.canceled) {
+        logger.d(
+            'ICE State change ignored, SIP session already terminated/canceled.');
+        _iceDisconnectTimer?.cancel();
+        return;
+      }
+
       if (state == RTCIceConnectionState.RTCIceConnectionStateFailed) {
+        logger.e('ICE Connection State Failed.');
+        _iceDisconnectTimer?.cancel();
         terminate(<String, dynamic>{
           'cause': DartSIP_C.CausesType.RTP_TIMEOUT,
           'status_code': 408,
-          'reason_phrase': DartSIP_C.CausesType.RTP_TIMEOUT
+          'reason_phrase': 'ICE Connection Failed'
         });
       } else if (state ==
           RTCIceConnectionState.RTCIceConnectionStateDisconnected) {
-        if (_state == RtcSessionState.terminated) return;
-        _iceRestart();
+        logger.w('ICE Connection State Disconnected.');
+        if (_iceDisconnectTimer == null && !_isAttemptingIceRestart) {
+          logger.i('Starting ICE disconnect timer...');
+          _iceDisconnectTimer = Timer(const Duration(seconds: 20), () {
+            logger.w('ICE disconnect timer fired!');
+            if (_connection?.iceConnectionState ==
+                    RTCIceConnectionState.RTCIceConnectionStateDisconnected &&
+                _state != RtcSessionState.terminated &&
+                _state != RtcSessionState.canceled &&
+                !_isAttemptingIceRestart) {
+              logger.i('Attempting ICE restart after timeout...');
+              _isAttemptingIceRestart = true;
+              _iceRestart();
+            } else {
+              logger.i('ICE restart aborted (state changed during timer).');
+            }
+            _iceDisconnectTimer = null;
+          });
+        } else {
+          logger.d(
+              'ICE disconnect timer not started (already running or attempting restart).');
+        }
+      } else if (state ==
+              RTCIceConnectionState.RTCIceConnectionStateConnected ||
+          state == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
+        // If connection recovers, cancel timer and reset flag
+        if (_iceDisconnectTimer != null || _isAttemptingIceRestart) {
+          logger.i(
+              'ICE Connection State Connected/Completed. Canceling timer/resetting flag.');
+          _iceDisconnectTimer?.cancel();
+          _isAttemptingIceRestart = false;
+        } else {
+          logger.i('ICE Connection State Connected/Completed.');
+        }
+      } else if (state == RTCIceConnectionState.RTCIceConnectionStateClosed) {
+        // Connection closed locally, usually via _connection.close() called by terminate()
+        logger.i('ICE Connection State Closed.'); // Use logger.i
+        _iceDisconnectTimer?.cancel(); // Ensure timer is cancelled
+        // Ensure *SIP* session state reflects closure if not already set by terminate()
+        if (_state != RtcSessionState.terminated &&
+            _state != RtcSessionState.canceled) {
+          logger.w(
+              'ICE closed but SIP session state was not terminal. Terminating SIP session now.');
+          terminate(<String, dynamic>{
+            'cause': DartSIP_C.CausesType.WEBRTC_ERROR,
+            'status_code': 487,
+            'reason_phrase': 'ICE Connection Closed'
+          });
+        }
+      } else if (state == RTCIceConnectionState.RTCIceConnectionStateChecking) {
+        logger.d('ICE Connection State Checking...'); // Use logger.d
+      } else if (state == RTCIceConnectionState.RTCIceConnectionStateNew) {
+        logger.d('ICE Connection State New.'); // Use logger.d
       }
     };
-
     // In future versions, unified-plan will be used by default
     String? sdpSemantics = 'unified-plan';
     if (pcConfig['sdpSemantics'] != null) {
@@ -2395,8 +2463,9 @@ class RTCSession extends EventManager implements Owner {
     if (stream != null) {
       switch (sdpSemantics) {
         case 'unified-plan':
-          stream.getTracks().forEach((MediaStreamTrack track) {
-            _connection!.addTrack(track, stream!);
+          stream.getTracks().forEach((MediaStreamTrack track) async {
+            RTCRtpSender sender = await _connection!.addTrack(track, stream!);
+            _senders.add(sender);
           });
           break;
         case 'plan-b':

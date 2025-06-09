@@ -1,10 +1,7 @@
-// Dart imports:
 import 'dart:convert' show utf8;
 
-// Package imports:
 import 'package:sdp_transform/sdp_transform.dart' as sdp_transform;
 
-// Project imports:
 import 'constants.dart' as DartSIP_C;
 import 'constants.dart';
 import 'data.dart';
@@ -666,8 +663,6 @@ class IncomingRequest extends IncomingMessage {
     // Validate code and reason values.
     if (code == null || (code < 100 || code > 699)) {
       throw Exceptions.TypeError('Invalid status_code: $code');
-    } else if (reason != null) {
-      throw Exceptions.TypeError('Invalid reason_phrase: $reason');
     }
 
     reason = reason ?? DartSIP_C.REASON_PHRASE[code] ?? '';
