@@ -44,7 +44,7 @@ class SIPUAHelper extends EventManager {
       RegistrationState(state: RegistrationStateEnum.NONE);
 
   /// Sets the logging level for the default logger. Has no effect if custom logger is supplied.
-  set loggingLevel(Level loggingLevel) => Log.loggingLevel = loggingLevel;
+  set loggingLevel(int loggingLevel) => Log.loggingLevel = fromIntToLevel(loggingLevel);
 
   bool get registered {
     if (_ua != null) {
@@ -109,9 +109,11 @@ class SIPUAHelper extends EventManager {
       if (mediaStream != null) {
         options['mediaStream'] = mediaStream;
       }
+
       List<dynamic> extHeaders = options['extraHeaders'] as List<dynamic>;
       extHeaders.addAll(headers ?? <String>[]);
       options['extraHeaders'] = extHeaders;
+
       _ua!.call(target, options);
       return true;
     } else {
