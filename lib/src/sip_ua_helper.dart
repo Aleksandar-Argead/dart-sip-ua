@@ -46,6 +46,13 @@ class SIPUAHelper extends EventManager {
   /// Sets the logging level for the default logger. Has no effect if custom logger is supplied.
   set loggingLevel(int loggingLevel) => Log.loggingLevel = fromIntToLevel(loggingLevel);
 
+
+  Level fromIntToLevel(int value) {
+    return Level.values.firstWhere((level) => level.value == value,
+        orElse: () => Level.off); // Default to 'off' if no match is found
+  }
+
+
   bool get registered {
     if (_ua != null) {
       return _ua!.isRegistered();
