@@ -31,7 +31,7 @@ class _MyRegisterWidget extends State<RegisterWidget>
   late SharedPreferences _preferences;
   late RegistrationState _registerState;
 
-  TransportType _selectedTransport = TransportType.TCP;
+  TransportType _selectedTransport = TransportType.TLS;
 
   SIPUAHelper? get helper => widget._helper;
 
@@ -68,11 +68,9 @@ class _MyRegisterWidget extends State<RegisterWidget>
   void _loadSettings() async {
     _preferences = await SharedPreferences.getInstance();
     setState(() {
-      _portController.text = '5060';
-      _wsUriController.text =
-          _preferences.getString('ws_uri') ?? 'wss://tryit.jssip.net:10443';
+      _portController.text = '5061';
       _sipUriController.text =
-          _preferences.getString('sip_uri') ?? 'hello_flutter@tryit.jssip.net';
+          _preferences.getString('sip_uri') ?? 'sip.firsty.app';
       _displayNameController.text =
           _preferences.getString('display_name') ?? 'Flutter SIP UA';
       _passwordController.text = _preferences.getString('password') ?? '';
@@ -92,6 +90,7 @@ class _MyRegisterWidget extends State<RegisterWidget>
 
   @override
   void registrationStateChanged(RegistrationState state) {
+    debugPrint('here ${state.cause}');
     setState(() {
       _registerState = state;
     });
@@ -118,15 +117,7 @@ class _MyRegisterWidget extends State<RegisterWidget>
   }
 
   void _register(BuildContext context) {
-    if (_wsUriController.text == '') {
-      _alert(context, "WebSocket URL");
-    } else if (_sipUriController.text == '') {
-      _alert(context, "SIP URI");
-    }
-
-    _saveSettings();
-
-       currentUser.register(SipUser(
+    currentUser.register(SipUser(
         selectedTransport: _selectedTransport,
         wsExtraHeaders: _wsExtraHeaders,
         sipUri: _sipUriController.text,

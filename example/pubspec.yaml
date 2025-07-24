@@ -19,7 +19,7 @@ environment:
   flutter: ">=1.10.0"
 
 dependencies:
-  bloc: ^9.0.0
+  bloc: ^8.1.4
   flutter:
     sdk: flutter
   sip_ua:
