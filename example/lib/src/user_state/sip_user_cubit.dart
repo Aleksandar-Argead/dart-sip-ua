@@ -21,18 +21,7 @@ class SipUserCubit extends Cubit<SipUser?> {
     settings.register_expires = 30;
 
     settings.iceTransportPolicy = IceTransportPolicy.RELAY;
-    settings.iceServers = [
-      {
-        "urls": 'turn:3.66.112.149:13478',
-        "username": 'wDTjokwP03Qj3n49',
-        "credential": '2O02uI63AnhUhqZx'
-      },
-      {
-        "urls": 'turn:18.153.186.100:13478',
-        "username": 'wDTjokwP03Qj3n49',
-        "credential": '2O02uI63AnhUhqZx'
-      }
-    ];
+    settings.iceServers = [];
 
     emit(user);
     sipHelper.start(settings);
