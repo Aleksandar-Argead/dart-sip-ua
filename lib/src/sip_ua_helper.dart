@@ -199,7 +199,7 @@ class SIPUAHelper extends EventManager {
     _settings.session_timers = uaSettings.sessionTimers;
     _settings.ice_gathering_timeout = uaSettings.iceGatheringTimeout;
     _settings.session_timers_refresh_method =
-        uaSettings.sessionTimersRefreshMethod;
+        uaSettings.sessionTimersRefreshMethodEnum;
     _settings.instance_id = uaSettings.instanceId;
     _settings.registrar_server = uaSettings.registrarServer;
     _settings.contact_uri = uaSettings.contact_uri != null
@@ -211,6 +211,7 @@ class SIPUAHelper extends EventManager {
         uaSettings.connectionRecoveryMinInterval;
     _settings.terminateOnAudioMediaPortZero =
         uaSettings.terminateOnMediaPortZero;
+    _settings.log_call_statistics = uaSettings.logCallStatistics;
 
     try {
       _ua = UA(_settings);
@@ -389,7 +390,11 @@ class SIPUAHelper extends EventManager {
         'iceTransportPolicy':
             (_uaSettings?.iceTransportPolicy ?? IceTransportPolicy.ALL)
                 .toParameterString(),
-        'iceServers': _uaSettings?.iceServers
+        'iceServers': _uaSettings?.iceServers,
+        'tcpCandidatePolicy':
+            (_uaSettings?.tcpCandidatePolicy ?? TcpCandidatePolicy.ENABLED)
+                .toParameterString(),
+        'iceCandidatePoolSize': _uaSettings?.iceCandidatePoolSize
       },
       'mediaConstraints': <String, dynamic>{
         'audio': true,
@@ -870,6 +875,19 @@ extension _IceTransportPolicyEncoding on IceTransportPolicy {
   }
 }
 
+enum TcpCandidatePolicy { ENABLED, DISABLED }
+
+extension _TcpCandidatePolicyEncoding on TcpCandidatePolicy {
+  String toParameterString() {
+    switch (this) {
+      case TcpCandidatePolicy.ENABLED:
+        return 'enabled';
+      case TcpCandidatePolicy.DISABLED:
+        return 'disabled';
+    }
+  }
+}
+
 class UaSettings {
   WebSocketSettings webSocketSettings = WebSocketSettings();
   TcpSocketSettings tcpSocketSettings = TcpSocketSettings();
@@ -916,6 +934,9 @@ class UaSettings {
   /// Min interval between recovery connection, default 2 sec
   int connectionRecoveryMinInterval = 2;
 
+  /// Allows to write advanced call statistics in the log after the call ends
+  bool logCallStatistics = false;
+
   bool terminateOnMediaPortZero = false;
 
   /// Sip Message Delay (in millisecond) (default 0).
@@ -935,8 +956,29 @@ class UaSettings {
   /// Will default to [IceTransportPolicy.ALL] if not specified.
   IceTransportPolicy? iceTransportPolicy;
 
+  /// Allows to disable tcp candidates gathering
+  /// Will default to [TcpCandidatePolicy.ENABLED] if not specified.
+  TcpCandidatePolicy? tcpCandidatePolicy;
+
+  /// An unsigned 16-bit integer value which specifies the size of the prefetched
+  /// ICE candidate pool. The default value is 0 (meaning no candidate prefetching will occur).
+  /// You may find in some cases that connections can be established more quickly
+  /// by allowing the ICE agent to start fetching ICE candidates before you start
+  /// trying to connect, so that they're already available for inspection
+  /// when RTCPeerConnection.setLocalDescription() is called.
+  int iceCandidatePoolSize = 0;
+
   /// Controls which kind of messages are to be sent to keep a SIP session
   /// alive.
   /// Defaults to "UPDATE"
-  DartSIP_C.SipMethod sessionTimersRefreshMethod = DartSIP_C.SipMethod.UPDATE;
+  String sessionTimersRefreshMethod = 'UPDATE';
+  DartSIP_C.SipMethod get sessionTimersRefreshMethodEnum {
+    switch (sessionTimersRefreshMethod.toUpperCase()) {
+      case 'INVITE':
+        return DartSIP_C.SipMethod.INVITE;
+      case 'UPDATE':
+      default:
+        return DartSIP_C.SipMethod.UPDATE;
+    }
+  }
 }
