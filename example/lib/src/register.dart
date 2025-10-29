@@ -31,7 +31,7 @@ class _MyRegisterWidget extends State<RegisterWidget>
   late SharedPreferences _preferences;
   late RegistrationState _registerState;
 
-  TransportType _selectedTransport = TransportType.TCP;
+  TransportType _selectedTransport = TransportType.TLS;
 
   SIPUAHelper? get helper => widget._helper;
 
@@ -68,11 +68,9 @@ class _MyRegisterWidget extends State<RegisterWidget>
   void _loadSettings() async {
     _preferences = await SharedPreferences.getInstance();
     setState(() {
-      _portController.text = '5060';
-      _wsUriController.text =
-          _preferences.getString('ws_uri') ?? 'wss://tryit.jssip.net:10443';
+      _portController.text = '5061';
       _sipUriController.text =
-          _preferences.getString('sip_uri') ?? 'hello_flutter@tryit.jssip.net';
+          _preferences.getString('sip_uri') ?? 'sip.firsty.app';
       _displayNameController.text =
           _preferences.getString('display_name') ?? 'Flutter SIP UA';
       _passwordController.text = _preferences.getString('password') ?? '';
@@ -92,6 +90,7 @@ class _MyRegisterWidget extends State<RegisterWidget>
 
   @override
   void registrationStateChanged(RegistrationState state) {
+    debugPrint('here ${state.cause}');
     setState(() {
       _registerState = state;
     });
@@ -201,7 +200,7 @@ class _MyRegisterWidget extends State<RegisterWidget>
               textAlign: TextAlign.center,
             ),
           ],
-          if (_selectedTransport == TransportType.TCP) ...[
+          if (_selectedTransport != TransportType.WS) ...[
             Text('Port', style: TextStyle(color: textLabelColor)),
             SizedBox(height: 5),
             TextFormField(
@@ -303,6 +302,13 @@ class _MyRegisterWidget extends State<RegisterWidget>
                           _selectedTransport = value!;
                         })),
                     child: Text("WS")),
+                RadioMenuButton<TransportType>(
+                    value: TransportType.TLS,
+                    groupValue: _selectedTransport,
+                    onChanged: ((value) => setState(() {
+                          _selectedTransport = value!;
+                        })),
+                    child: Text("TLS")),
               ],
             ),
           ],

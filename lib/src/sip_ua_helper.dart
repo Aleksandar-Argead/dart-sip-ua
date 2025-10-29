@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:logger/logger.dart';
 import 'package:sdp_transform/sdp_transform.dart' as sdp_transform;
+import 'package:sip_ua/src/transports/tls_socket.dart';
 
 import 'package:sip_ua/src/uri.dart';
 import 'config.dart';
@@ -43,7 +44,14 @@ class SIPUAHelper extends EventManager {
       RegistrationState(state: RegistrationStateEnum.NONE);
 
   /// Sets the logging level for the default logger. Has no effect if custom logger is supplied.
-  set loggingLevel(Level loggingLevel) => Log.loggingLevel = loggingLevel;
+  set loggingLevel(int loggingLevel) => Log.loggingLevel = fromIntToLevel(loggingLevel);
+
+
+  Level fromIntToLevel(int value) {
+    return Level.values.firstWhere((level) => level.value == value,
+        orElse: () => Level.off); // Default to 'off' if no match is found
+  }
+
 
   bool get registered {
     if (_ua != null) {
@@ -108,9 +116,11 @@ class SIPUAHelper extends EventManager {
       if (mediaStream != null) {
         options['mediaStream'] = mediaStream;
       }
+
       List<dynamic> extHeaders = options['extraHeaders'] as List<dynamic>;
       extHeaders.addAll(headers ?? <String>[]);
       options['extraHeaders'] = extHeaders;
+
       _ua!.call(target, options);
       return true;
     } else {
@@ -151,6 +161,13 @@ class SIPUAHelper extends EventManager {
     if (uaSettings.transportType == TransportType.TCP) {
       SIPUATcpSocket socket = SIPUATcpSocket(
           uaSettings.host ?? '0.0.0.0', uaSettings.port ?? '5060',
+          messageDelay: 1);
+      _settings.sockets!.add(socket);
+    }
+
+    if (uaSettings.transportType == TransportType.TLS) {
+      SIPUATlsSocket socket = SIPUATlsSocket(
+          uaSettings.host ?? '0.0.0.0', uaSettings.port ?? '5061',
           messageDelay: 1);
       _settings.sockets!.add(socket);
     }
